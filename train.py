@@ -21,7 +21,6 @@ from utils import (get_balance_class_oversample,
 from logger import get_logger
 
 import logging
-tf.get_logger().setLevel(logging.ERROR)
 
 
 def train(

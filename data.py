@@ -16,6 +16,8 @@ def get_subject_files(dataset, files, sid):
         # reg_exp = "[a-zA-Z0-9]*{}[1-9]E0\.npz$".format(str(sid).zfill(2))
     elif "isruc" in dataset:
         reg_exp = f"subject{sid+1}.npz"
+    elif "cap" in dataset:
+        reg_exp = f"subject_{sid+1}_.*.npz"
     else:
         raise Exception("Invalid datasets.")
 
@@ -39,7 +41,10 @@ def load_data(subject_files):
         with np.load(sf) as f:
             x = f['x']
             y = f['y']
-            fs = f['fs']
+            try:
+                fs = f['fs']
+            except:
+                fs = 512
 
             if sampling_rate is None:
                 sampling_rate = fs
