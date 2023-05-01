@@ -42,10 +42,12 @@ ann2label = {
 
 subject_id = 0
 for f in glob.glob('{}/*.edf'.format(DATA_DIR)):
+#     if 'n6.edf' not in f: continue
     subject_id += 1
     ann = f.replace('.edf', '.txt')
     df_ann = pd.read_csv(ann, skiprows=20 if 'n16.edf' in f else 21, delimiter='\t')
     raw = read_raw_edf(f, preload=True, stim_channel=None)
+    
     sampling_rate = raw.info['sfreq']
     print("file {} contains channels {}".format(f, raw.info['ch_names']))
     select_ch = None
@@ -57,8 +59,8 @@ for f in glob.glob('{}/*.edf'.format(DATA_DIR)):
             break
     print("selected channel {} and suffix is {}".format(select_ch, suffix))
     out_f = os.path.join(OUTPUT_DIR, 'subject_{}_'.format(subject_id) + os.path.basename(f.replace('.edf', suffix+'.npz')))
-    if os.path.exists(out_f):
-        continue
+#     if os.path.exists(out_f):
+#         continue
     print('output to', out_f)  
     raw_ch_df = raw.to_data_frame(scaling_time=100.0)[select_ch]
     raw_ch_df = raw_ch_df.to_frame()
@@ -100,6 +102,7 @@ for f in glob.glob('{}/*.edf'.format(DATA_DIR)):
     
     labels = []
     label_idx = []
+    time_stamps = []
     last_epoch_time = start_time.split(' ')[-1]
     # start from where we have labels
     start_idx = delta.total_seconds() * sampling_rate if delta.total_seconds() >= 0 else (delta.total_seconds() + 86400) * sampling_rate
@@ -120,7 +123,7 @@ for f in glob.glob('{}/*.edf'.format(DATA_DIR)):
         
         # may skip some epochs
         offset = (this_t - last_t).total_seconds()
-        print("cnt:", cnt, "last_epoch_time:", last_epoch_time, "this_epoch_time:", this_epoch_time, "offset:", offset, "start_idx:", start_idx)
+#         print("cnt:", cnt, "last_epoch_time:", last_epoch_time, "this_epoch_time:", this_epoch_time, "offset:", offset, "start_idx:", start_idx)
         assert offset % 30 == 0
         if offset < 0:
             offset += 86400
@@ -135,14 +138,19 @@ for f in glob.glob('{}/*.edf'.format(DATA_DIR)):
         if start_idx > len(raw_ch_df):
             break
         label_epoch = np.ones(duration_epoch, dtype=np.int) * label
+        
+        assert len(label_epoch) == (len(idx)//30//sampling_rate)
+        
         labels.append(label_epoch)
         label_idx.append(idx)
+        time_stamps.append(this_epoch_time)
 
-        print("last_epoch_time:", last_epoch_time, "this_epoch_time:", this_epoch_time, "offset:", offset, "idx:", idx, "duration_sec:", duration_sec)
+#         print("last_epoch_time:", last_epoch_time, "this_epoch_time:", this_epoch_time, "offset:", offset, "idx:", idx, "duration_sec:", duration_sec)
         
         last_epoch_time = this_epoch_time
 
     labels = np.hstack(labels)
+    time_stamps = np.hstack(time_stamps)
     select_idx = np.arange(len(raw_ch_df))
     print("before intersect label: {}".format(select_idx.shape))
     label_idx = np.hstack(label_idx)
@@ -160,8 +168,9 @@ for f in glob.glob('{}/*.edf'.format(DATA_DIR)):
     # Get epochs and their corresponding labels
     x = np.asarray(np.split(raw_ch, n_epochs)).astype(np.float32)
     y = labels.astype(np.int32)
+    t = time_stamps.astype(str)
 
-    print('len(x)', len(x), 'len(y)', len(y))
+#     print('len(x)', len(x), 'len(y)', len(y))
     assert len(x) == len(y)
 
     # Select on sleep periods
@@ -175,19 +184,17 @@ for f in glob.glob('{}/*.edf'.format(DATA_DIR)):
     print("Data before selection: {}, {}".format(x.shape, y.shape))
     x = x[select_idx]
     y = y[select_idx]
+    t = t[select_idx]
     print("Data after selection: {}, {}".format(x.shape, y.shape))
-    x = resample(x, 512*30, axis=1) if sampling_rate != 512 else x
+#     x = resample(x, 512*30, axis=1) if sampling_rate != 512 else x
     print('Before save {}, {}'.format(x.shape, y.shape))
 
     save_dict = {
         "x": x, 
-        "y": y
+        "y": y,
+        "fs": sampling_rate,
+        "t": t
     }
     np.savez(out_f, **save_dict)
-
-
-# In[ ]:
-
-
 
 
